@@ -5,7 +5,7 @@
 Skill 已安装到：
 
 ```text
-~/.codex/skills/wechat-apple-scheduler/
+~/.codex/skills/私人日程管理助手/
 ```
 
 包含：
@@ -13,15 +13,28 @@ Skill 已安装到：
 ```text
 SKILL.md                              工作流和使用规则
 agents/openai.yaml                    Skill 显示信息
+scripts/obsidian_plan.py              读写 Obsidian 周计划表与复盘批注
+scripts/apple_scheduler.py            写 Apple 日历/提醒事项、回读、附图、幂等更新
 scripts/extract_chat_archive.py       解压聊天记录并生成 manifest.json
-scripts/apple_scheduler.py            写入、回读、附图与幂等更新
+scripts/install_helper.py             安装 WorkBuddy 用的独立 Helper
+scripts/check_permissions.py          检查日历/提醒事项/辅助功能权限
 references/install-and-usage.md       本说明
+references/obsidian-workflow.md       Obsidian 数据契约与排错
+references/review-workflow.md         对话式复盘的流程与提问脚本
 ```
 
 Codex 会在相关请求出现时自动发现它。也可以显式调用：
 
 ```text
-$wechat-apple-scheduler 分析这份聊天记录，把确认的日程和待办写入 Apple 日历与提醒事项，相关图片要作为附件。
+$私人日程管理助手 分析这份聊天记录：固定时间的安排写成 Obsidian 周计划表，
+有约见的放进 Apple 日历，要做的动作放进提醒事项。相关图片作为附件。
+```
+
+也可以只走其中一条通道：
+
+```text
+$私人日程管理助手 帮我把这周排成 Obsidian 周计划表。
+$私人日程管理助手 我想复盘这周，陪我一条条过一下。
 ```
 
 ## 权限准备
@@ -54,12 +67,56 @@ $wechat-apple-scheduler 分析这份聊天记录，把确认的日程和待办�
 不需要每次预览，但改期、取消和删除已有事项前必须先问我。
 ```
 
+## Obsidian 周计划
+
+### 初始化
+
+```bash
+python3 ~/.codex/skills/私人日程管理助手/scripts/obsidian_plan.py init-vault \
+  --vault "/path/to/YourVault"
+```
+
+会建子目录 `日程规划/`、写模板与索引、写入并启用 CSS 片段 `weekly-plan`。
+
+### 建周与填写
+
+```bash
+python3 ~/.codex/skills/私人日程管理助手/scripts/obsidian_plan.py new-week \
+  --vault "/path/to/YourVault" --week 1 --start 2026-10-19
+
+python3 ~/.codex/skills/私人日程管理助手/scripts/obsidian_plan.py set-cell \
+  --vault "/path/to/YourVault" --week 1 --row "5:00 - 5:30" --day 周一 \
+  --value "起床 + 洗漱"
+```
+
+`--day` 可用 `周一`…`周日` 或 `1`…`7`。
+
+### 复盘
+
+```bash
+python3 ~/.codex/skills/私人日程管理助手/scripts/obsidian_plan.py set-review \
+  --vault "/path/to/YourVault" --week 1 --row "5:00 - 5:30" --day 周一 \
+  --status 未完成 --note "昨晚刷手机到 1 点，赖床到 5:40"
+
+python3 ~/.codex/skills/私人日程管理助手/scripts/obsidian_plan.py list-reviews \
+  --vault "/path/to/YourVault" --week 1
+```
+
+数据格式、字段约定和排错见 `references/obsidian-workflow.md`；
+对话式复盘该怎么问、怎么记，见 `references/review-workflow.md`。
+
+### 表格显示很窄？
+
+Obsidian 默认开启「可读行宽」，内容区约 700px，而周计划表有 8 列。
+`init-vault` 写入的 CSS 片段已经覆盖了宽度限制。如果仍很窄，检查
+「设置 → 外观 → CSS 片段」里 `weekly-plan` 是否启用。
+
 ## 手动执行脚本
 
 ### 1. 解压聊天记录
 
 ```bash
-python3 ~/.codex/skills/wechat-apple-scheduler/scripts/extract_chat_archive.py \
+python3 ~/.codex/skills/私人日程管理助手/scripts/extract_chat_archive.py \
   "/absolute/path/to/chat.zip" \
   --output "/absolute/path/to/workdir"
 ```
@@ -69,7 +126,7 @@ python3 ~/.codex/skills/wechat-apple-scheduler/scripts/extract_chat_archive.py \
 ### 2. 创建或更新提醒事项
 
 ```bash
-python3 ~/.codex/skills/wechat-apple-scheduler/scripts/apple_scheduler.py upsert-reminder \
+python3 ~/.codex/skills/私人日程管理助手/scripts/apple_scheduler.py upsert-reminder \
   --state "$HOME/.codex/state/wechat-apple-scheduler.json" \
   --key "source-date-parcel" \
   --list "聊天日程试运行" \
@@ -87,7 +144,7 @@ python3 ~/.codex/skills/wechat-apple-scheduler/scripts/apple_scheduler.py upsert
 ### 3. 创建或更新日历事件
 
 ```bash
-python3 ~/.codex/skills/wechat-apple-scheduler/scripts/apple_scheduler.py upsert-event \
+python3 ~/.codex/skills/私人日程管理助手/scripts/apple_scheduler.py upsert-event \
   --state "$HOME/.codex/state/wechat-apple-scheduler.json" \
   --key "source-date-guest" \
   --calendar "聊天日程试运行" \
@@ -106,7 +163,7 @@ python3 ~/.codex/skills/wechat-apple-scheduler/scripts/apple_scheduler.py upsert
 提醒事项：
 
 ```bash
-python3 ~/.codex/skills/wechat-apple-scheduler/scripts/apple_scheduler.py attach-reminder-image \
+python3 ~/.codex/skills/私人日程管理助手/scripts/apple_scheduler.py attach-reminder-image \
   --list "聊天日程试运行" \
   --reminder-id "<reminder-id>" \
   --image "/absolute/path/image.jpg"
@@ -115,7 +172,7 @@ python3 ~/.codex/skills/wechat-apple-scheduler/scripts/apple_scheduler.py attach
 日历：
 
 ```bash
-python3 ~/.codex/skills/wechat-apple-scheduler/scripts/apple_scheduler.py attach-event-image \
+python3 ~/.codex/skills/私人日程管理助手/scripts/apple_scheduler.py attach-event-image \
   --calendar "聊天日程试运行" \
   --event-uid "<event-uid>" \
   --image "/absolute/path/image.jpg"
@@ -126,10 +183,10 @@ python3 ~/.codex/skills/wechat-apple-scheduler/scripts/apple_scheduler.py attach
 ### 5. 回读验证
 
 ```bash
-python3 ~/.codex/skills/wechat-apple-scheduler/scripts/apple_scheduler.py list-reminders \
+python3 ~/.codex/skills/私人日程管理助手/scripts/apple_scheduler.py list-reminders \
   --list "聊天日程试运行"
 
-python3 ~/.codex/skills/wechat-apple-scheduler/scripts/apple_scheduler.py list-events \
+python3 ~/.codex/skills/私人日程管理助手/scripts/apple_scheduler.py list-events \
   --calendar "聊天日程试运行"
 ```
 
@@ -140,7 +197,7 @@ python3 ~/.codex/skills/wechat-apple-scheduler/scripts/apple_scheduler.py list-e
 首次创建：
 
 ```bash
-python3 ~/.codex/skills/wechat-apple-scheduler/scripts/apple_scheduler.py upsert-event \
+python3 ~/.codex/skills/私人日程管理助手/scripts/apple_scheduler.py upsert-event \
   --state "$HOME/.codex/state/wechat-apple-scheduler.json" \
   --key "daily-morning" --calendar "聊天日程试运行" \
   --title "☀️ 规划今天" \
@@ -148,7 +205,7 @@ python3 ~/.codex/skills/wechat-apple-scheduler/scripts/apple_scheduler.py upsert
   --date 2026-10-03 --start-time 09:00 --end-time 09:10 \
   --repeat daily --alert-minutes 0
 
-python3 ~/.codex/skills/wechat-apple-scheduler/scripts/apple_scheduler.py upsert-event \
+python3 ~/.codex/skills/私人日程管理助手/scripts/apple_scheduler.py upsert-event \
   --state "$HOME/.codex/state/wechat-apple-scheduler.json" \
   --key "daily-evening" --calendar "聊天日程试运行" \
   --title "🌙 复盘今天，安排明天" \
@@ -170,7 +227,7 @@ python3 ~/.codex/skills/wechat-apple-scheduler/scripts/apple_scheduler.py upsert
 ## 卸载
 
 ```bash
-rm -rf ~/.codex/skills/wechat-apple-scheduler
+rm -rf ~/.codex/skills/私人日程管理助手
 ```
 
 状态文件默认位于：
@@ -186,7 +243,7 @@ rm -rf ~/.codex/skills/wechat-apple-scheduler
 WorkBuddy 缺少 Apple Events 权限时，直接 `osascript` 会失败。解决方式是安装独立 Helper app，让 Helper 成为 TCC 责任进程：
 
 ```bash
-python3 ~/.codex/skills/wechat-apple-scheduler/scripts/install_helper.py
+python3 ~/.codex/skills/私人日程管理助手/scripts/install_helper.py
 ```
 
 默认安装路径：
@@ -198,7 +255,7 @@ python3 ~/.codex/skills/wechat-apple-scheduler/scripts/install_helper.py
 首次授权与自检：
 
 ```bash
-python3 ~/.codex/skills/wechat-apple-scheduler/scripts/check_permissions.py
+python3 ~/.codex/skills/私人日程管理助手/scripts/check_permissions.py
 ```
 
 如果 macOS 弹出“Apple Chat Scheduler Helper 想要控制提醒事项/日历”时选择允许。若日历仍报 `-1743`，到“系统设置 > 隐私与安全性 > 自动化”，给 `Apple Chat Scheduler Helper` 勾选“日历”和“提醒事项”。然后到：
